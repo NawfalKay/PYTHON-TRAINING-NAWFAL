@@ -2,35 +2,32 @@ import streamlit as st
 import requests
 import time
 
-st.set_page_config(page_title="Monitor Suhu & Kelembapan", layout="centered")
+FASTAPI_URL = "http://localhost:8000"
 
-st.title("📡 Monitor Suhu dan Kelembapan dari Flask Server")
+st.title("Monitoring Data dari ESP32 (Dummy Realtime)")
 
-# Fungsi untuk mengambil data dari Flask API
-def fetch_data():
-    try:
-        response = requests.get("http://127.0.0.1:5000/api/data")
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return {"error": "Gagal mengambil data dari server Flask"}
-    except Exception as e:
-        return {"error": str(e)}
+# Tempat untuk menampilkan metrik
+temp_placeholder = st.empty()
+hum_placeholder = st.empty()
+time_placeholder = st.empty()
 
-# Tampilan auto-refresh setiap beberapa detik
-refresh_interval = st.slider("Refresh setiap (detik):", 1, 10, 5) #
-
-placeholder = st.empty()
-
+# Loop realtime
 while True:
-    data = fetch_data()
+    try:
+        # Panggil endpoint untuk generate data dummy baru
+        requests.post(f"{FASTAPI_URL}/generate")
 
-    with placeholder.container():
-        if "error" in data:
-            st.error(data["error"])
+        # Ambil data dari FastAPI
+        res = requests.get(f"{FASTAPI_URL}/data")
+        if res.status_code == 200:
+            data = res.json()
+            temp_placeholder.metric("Suhu (°C)", data['temperature'])
+            hum_placeholder.metric("Kelembaban (%)", data['humidity'])
+            time_placeholder.write("Terakhir diperbarui: " + time.ctime(data['timestamp']))
         else:
-            st.metric("🌡️ Suhu (°C)", data["temperature"])
-            st.metric("💧 Kelembapan (%)", data["humidity"])
-            st.info(f"Status: {data['status']}")
-    
-    time.sleep(refresh_interval)
+            st.error("Gagal mengambil data")
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+    # Tunggu 2 detik sebelum update lagi
+    time.sleep(2)
